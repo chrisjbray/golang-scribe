@@ -1,10 +1,13 @@
 THRIFT_PATH := $(CURDIR)/thrift
 SCRIBE_PATH := $(CURDIR)/scribe-checkout
 DOCKER_CONTAINER_NAME := scribe-go-builder
+GITHUB_OWNER := $(shell basename $(abspath $(dir $(lastword $(MAKEFILE_LIST)))../))
+GITHUB_PROJECT := $(shell basename $(abspath $(dir $(lastword $(MAKEFILE_LIST)))))
+DEST := /src/$(GITHUB_OWNER)/$(GITHUB_PROJECT)
 
 all: build-in-docker scribe fb303
 .PHONY: build
-build: gen/scribe/scribe.go fb303 scribe	
+build: gen/scribe/scribe.go fb303 scribe
 
 
 # =============
@@ -59,19 +62,19 @@ $(SCRIBE_PATH):
 # ==========
 
 gen/scribe/scribe.go: $(THRIFT_PATH)/compiler/cpp/thrift $(SCRIBE_PATH)
-	mkdir -p $(CURDIR)/gen
-	$(THRIFT_PATH)/compiler/cpp/thrift -out /src/gen --gen go:package_prefix="github.com/Yelp/golang-scribe/" -v -r -I $(THRIFT_PATH)/contrib $(SCRIBE_PATH)/if/scribe.thrift
+	mkdir -p gen
+	$(THRIFT_PATH)/compiler/cpp/thrift -out gen --gen go:package_prefix="github.com/$(GITHUB_OWNER)/$(GITHUB_PROJECT)/" -v -r -I $(THRIFT_PATH)/contrib $(SCRIBE_PATH)/if/scribe.thrift
 
 scribe:
-	cp -r gen/scribe/ .
+	cp -r gen/scribe .
 fb303:
-	cp -r gen/fb303/  .
+	cp -r gen/fb303  .
 
 .PHONY: build-in-docker
 build-in-docker:
 	docker build -t $(DOCKER_CONTAINER_NAME) .
 	# Run make scribe.go within the docker container and restore file permissions
-	docker run -it -v $(CURDIR):/src:rw $(DOCKER_CONTAINER_NAME) /bin/bash -c "make -C /src gen/scribe/scribe.go; chown -R $$(id -u):$$(id -g) /src"
+	docker run -it -v $(CURDIR):$(DEST):rw $(DOCKER_CONTAINER_NAME) /bin/bash -c "make -C $(DEST) gen/scribe/scribe.go; chown -R $$(id -u):$$(id -g) /src"
 
 .PHONY: clean
 clean:
